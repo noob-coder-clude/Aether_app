@@ -26,6 +26,15 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Auto Fix Flutter 3.22 API Compatibility
+        run: |
+          mkdir -p assets/bin assets/logo
+          sed -i 's/intl: \^0.19.0/intl: \^0.20.2/g' pubspec.yaml
+          sed -i "s/label: 'Tunnel'/text: 'Tunnel'/g; s/label: 'Config'/text: 'Config'/g; s/label: 'Logs'/text: 'Logs'/g; s/label: 'Updates'/text: 'Updates'/g" lib/main.dart
+          sed -i "s/cardTheme: CardTheme(/cardTheme: CardThemeData(/g" lib/theme/app_theme.dart
+          sed -i "s/CrossAlignment.start/CrossAxisAlignment.start/g" lib/screens/home_screen.dart lib/screens/update_screen.dart
+          sed -i 's/package="com.cluvex.aether"//g' android/app/src/main/AndroidManifest.xml || true
+
       - name: Download Aether Native Core Binaries
         run: |
           chmod +x scripts/download_aether_binaries.sh
