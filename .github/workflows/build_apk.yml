@@ -2,13 +2,15 @@ name: Build Aether Release APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -26,15 +28,6 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Auto Fix Flutter 3.22 API Compatibility
-        run: |
-          mkdir -p assets/bin assets/logo
-          sed -i 's/intl: \^0.19.0/intl: \^0.20.2/g' pubspec.yaml
-          sed -i "s/label: 'Tunnel'/text: 'Tunnel'/g; s/label: 'Config'/text: 'Config'/g; s/label: 'Logs'/text: 'Logs'/g; s/label: 'Updates'/text: 'Updates'/g" lib/main.dart
-          sed -i "s/cardTheme: CardTheme(/cardTheme: CardThemeData(/g" lib/theme/app_theme.dart
-          sed -i "s/CrossAlignment.start/CrossAxisAlignment.start/g" lib/screens/home_screen.dart lib/screens/update_screen.dart
-          sed -i 's/package="com.cluvex.aether"//g' android/app/src/main/AndroidManifest.xml || true
-
       - name: Download Aether Native Core Binaries
         run: |
           chmod +x scripts/download_aether_binaries.sh
@@ -43,11 +36,31 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
-      - name: Build R8 Minified Release APK
-        run: flutter build apk --release
+      - name: Build Release APK
+        run: flutter build apk --release 2>&1 | tee /tmp/flutter_build.log
+
+      - name: Show build errors on failure
+        if: failure()
+        run: |
+          echo "==== Flutter build errors ===="
+          grep -iE "error|fail|exception|unresolved" /tmp/flutter_build.log || true
+          echo "==== last 60 lines ===="
+          tail -60 /tmp/flutter_build.log || true
 
       - name: Upload Release APK Artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Aether-release.apk
+          name: Aether-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.2.0-${{ github.run_number }}
+          name: Aether v1.2.0 Build ${{ github.run_number }}
+          files: build/app/outputs/flutter-apk/app-release.apk
+          generate_release_notes: true
+          prerelease: false
