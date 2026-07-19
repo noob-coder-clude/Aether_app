@@ -21,56 +21,60 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Flutter SDK
+      - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
+          flutter-version: '3.22.0'
           channel: 'stable'
           cache: true
 
-      - name: Fix Flutter project structure
+      - name: Create Temporary Flutter Project
         run: |
-          # The project was created by Arena.ai but missing gradle wrapper
-          # Fix by creating a proper flutter project and merging
           cd /tmp
-          flutter create --org com.cluvex --project-name aether_app aether_temp 2>&1
-          # Copy missing gradle wrapper files
-          cp -r aether_temp/android/gradle android/
-          cp aether_temp/android/gradlew android/
-          cp aether_temp/android/gradlew.bat android/
-          cp aether_temp/android/local.properties android/ || true
-          chmod +x android/gradlew
-          # Remove temp project
-          rm -rf aether_temp
-          echo "=== Fixed project structure ==="
-          ls -la android/gradlew
-          ls -la android/gradle/wrapper/
-
-      - name: Download Aether Native Core Binaries
+          flutter config --no-analytics
+          flutter create --org com.cluvex --project-name aether_app temp_flutter
+          
+      - name: Copy Source Code to Flutter Project
         run: |
-          chmod +x scripts/download_aether_binaries.sh
-          ./scripts/download_aether_binaries.sh
+          # Remove default Flutter code directories but keep gradle settings
+          rm -rf /tmp/temp_flutter/lib
+          rm -rf /tmp/temp_flutter/assets
+          
+          # Copy our lib and assets
+          cp -r /home/runner/work/Aether_app/Aether_app/lib /tmp/temp_flutter/
+          cp -r /home/runner/work/Aether_app/Aether_app/assets /tmp/temp_flutter/
+          cp /home/runner/work/Aether_app/Aether_app/pubspec.yaml /tmp/temp_flutter/
+          cp /home/runner/work/Aether_app/Aether_app/scripts/*.sh /tmp/temp_flutter/scripts/
+          
+          # Copy our Kotlin files to proper location
+          rm -rf /tmp/temp_flutter/android/app/src/main/kotlin
+          mkdir -p /tmp/temp_flutter/android/app/src/main/kotlin/com/cluvex/aether
+          cp -r /home/runner/work/Aether_app/Aether_app/android/app/src/main/kotlin/com/cluvex/aether/* /tmp/temp_flutter/android/app/src/main/kotlin/com/cluvex/aether/
+          
+          # Copy AndroidManifest.xml
+          cp /home/runner/work/Aether_app/Aether_app/android/app/src/main/AndroidManifest.xml /tmp/temp_flutter/android/app/src/main/
+          
+          ls -la /tmp/temp_flutter/
 
+      - name: Download Aether Native Binaries
+        run: |
+          chmod +x /tmp/temp_flutter/scripts/download_aether_binaries.sh
+          /tmp/temp_flutter/scripts/download_aether_binaries.sh
+          
       - name: Install Dependencies
+        working-directory: /tmp/temp_flutter
         run: flutter pub get
 
-      - name: Build Release APK
-        run: flutter build apk --release 2>&1 | tee /tmp/flutter_build.log
+      - name: Build Release APK  
+        working-directory: /tmp/temp_flutter
+        run: flutter build apk --release --build-number=1 --build-name=1.2.0
 
-      - name: Show build errors on failure
-        if: failure()
-        run: |
-          echo "==== Flutter build errors ===="
-          grep -iE "error|fail|exception|unresolved|\.dart:|\.kt:" /tmp/flutter_build.log || true
-          echo "==== last 100 lines ===="
-          tail -100 /tmp/flutter_build.log || true
-
-      - name: Upload Release APK Artifact
-        if: success()
+      - name: Upload APK Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Aether-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: /tmp/temp_flutter/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
       - name: Create GitHub Release
@@ -79,6 +83,6 @@ jobs:
         with:
           tag_name: v1.2.0-${{ github.run_number }}
           name: Aether v1.2.0 Build ${{ github.run_number }}
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: /tmp/temp_flutter/build/app/outputs/flutter-apk/app-release.apk
           generate_release_notes: true
           prerelease: false
