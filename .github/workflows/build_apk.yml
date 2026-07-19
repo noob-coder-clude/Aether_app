@@ -28,16 +28,23 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Setup project (local.properties + gradle wrapper)
+      - name: Fix Flutter project structure
         run: |
-          # Create local.properties with Flutter SDK path
-          echo "flutter.sdk=$(dirname $(dirname $(which flutter)))" > android/local.properties
-          cat android/local.properties
-          
-          # Create gradle wrapper using flutter's built-in command
-          cd android
-          flutter config --no-analytics
-          cd ..
+          # The project was created by Arena.ai but missing gradle wrapper
+          # Fix by creating a proper flutter project and merging
+          cd /tmp
+          flutter create --org com.cluvex --project-name aether_app aether_temp 2>&1
+          # Copy missing gradle wrapper files
+          cp -r aether_temp/android/gradle android/
+          cp aether_temp/android/gradlew android/
+          cp aether_temp/android/gradlew.bat android/
+          cp aether_temp/android/local.properties android/ || true
+          chmod +x android/gradlew
+          # Remove temp project
+          rm -rf aether_temp
+          echo "=== Fixed project structure ==="
+          ls -la android/gradlew
+          ls -la android/gradle/wrapper/
 
       - name: Download Aether Native Core Binaries
         run: |
