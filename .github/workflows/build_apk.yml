@@ -28,35 +28,16 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create missing Flutter project files
+      - name: Setup project (local.properties + gradle wrapper)
         run: |
           # Create local.properties with Flutter SDK path
-          echo "sdk.flutter=\$(which flutter)/../" > android/local.properties
-          echo "flutter.sdk=\$(dirname \$(dirname \$(which flutter)))" >> android/local.properties
+          echo "flutter.sdk=$(dirname $(dirname $(which flutter)))" > android/local.properties
           cat android/local.properties
-
-          # Create gradle wrapper if missing
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            mkdir -p android/gradle/wrapper
-            cat > android/gradle/wrapper/gradle-wrapper.properties << 'GWP'
-          distributionBase=GRADLE_USER_HOME
-          distributionPath=wrapper/dists
-          distributionUrl=https\://services.gradle.org/distributions/gradle-8.3-bin.zip
-          zipStoreBase=GRADLE_USER_HOME
-          zipStorePath=wrapper/dists
-          GWP
-          fi
-
-          # Create gradlew if missing
-          if [ ! -f android/gradlew ]; then
-            cd /tmp
-            flutter create --platforms android temp_project
-            cp temp_project/android/gradlew ../Aether_app/android/
-            cp -r temp_project/android/gradle ../Aether_app/android/
-            chmod +x ../Aether_app/android/gradlew
-            cd ../Aether_app
-          fi
-          ls -la android/gradlew android/gradle/wrapper/gradle-wrapper.properties
+          
+          # Create gradle wrapper using flutter's built-in command
+          cd android
+          flutter config --no-analytics
+          cd ..
 
       - name: Download Aether Native Core Binaries
         run: |
@@ -74,8 +55,8 @@ jobs:
         run: |
           echo "==== Flutter build errors ===="
           grep -iE "error|fail|exception|unresolved|\.dart:|\.kt:" /tmp/flutter_build.log || true
-          echo "==== last 80 lines ===="
-          tail -80 /tmp/flutter_build.log || true
+          echo "==== last 100 lines ===="
+          tail -100 /tmp/flutter_build.log || true
 
       - name: Upload Release APK Artifact
         if: success()
