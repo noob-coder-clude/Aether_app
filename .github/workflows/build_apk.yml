@@ -28,6 +28,36 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Create missing Flutter project files
+        run: |
+          # Create local.properties with Flutter SDK path
+          echo "sdk.flutter=\$(which flutter)/../" > android/local.properties
+          echo "flutter.sdk=\$(dirname \$(dirname \$(which flutter)))" >> android/local.properties
+          cat android/local.properties
+
+          # Create gradle wrapper if missing
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            mkdir -p android/gradle/wrapper
+            cat > android/gradle/wrapper/gradle-wrapper.properties << 'GWP'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.3-bin.zip
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          GWP
+          fi
+
+          # Create gradlew if missing
+          if [ ! -f android/gradlew ]; then
+            cd /tmp
+            flutter create --platforms android temp_project
+            cp temp_project/android/gradlew ../Aether_app/android/
+            cp -r temp_project/android/gradle ../Aether_app/android/
+            chmod +x ../Aether_app/android/gradlew
+            cd ../Aether_app
+          fi
+          ls -la android/gradlew android/gradle/wrapper/gradle-wrapper.properties
+
       - name: Download Aether Native Core Binaries
         run: |
           chmod +x scripts/download_aether_binaries.sh
@@ -43,9 +73,9 @@ jobs:
         if: failure()
         run: |
           echo "==== Flutter build errors ===="
-          grep -iE "error|fail|exception|unresolved" /tmp/flutter_build.log || true
-          echo "==== last 60 lines ===="
-          tail -60 /tmp/flutter_build.log || true
+          grep -iE "error|fail|exception|unresolved|\.dart:|\.kt:" /tmp/flutter_build.log || true
+          echo "==== last 80 lines ===="
+          tail -80 /tmp/flutter_build.log || true
 
       - name: Upload Release APK Artifact
         if: success()
